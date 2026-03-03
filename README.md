@@ -134,6 +134,18 @@ The dashboard service loads two environment files:
 - `/etc/gapo-dashboard/config` — dashboard credentials and settings
 - `/etc/gapo/config` — gapo server config (provides `GAPO_TOKEN`)
 
+## Firewall / Ports
+
+The following ports **must be open** on your cloud provider's firewall (e.g. Tencent Cloud Lighthouse, AWS Security Group, etc.) for the gapo server and dashboard to work:
+
+| Port | Protocol | Purpose | Who connects |
+|---|---|---|---|
+| **80** | TCP | ACME certificate challenges + HTTP→HTTPS redirect | Browsers, Let's Encrypt |
+| **443** | TCP | HTTPS — serves tunneled sites to visitors | Browsers |
+| **19443** | TCP | Tunnel control — gapo clients connect here | Gapo clients (laptops, servers) |
+
+> **Important:** Without port **19443** open, external gapo clients will not be able to connect and register tunnels. If you only open 80 and 443, the dashboard will work but no one can create tunnels from their machines.
+
 ## Requirements
 
 - Python 3.12+
