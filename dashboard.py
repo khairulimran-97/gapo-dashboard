@@ -519,11 +519,11 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 <nav class="nav">
 <div class="nav-brand">Gapo Dashboard</div>
 <div class="nav-links">
+<a href="/setup" class="{active_setup}">Setup</a>
 <a href="/" class="{active_overview}">Overview</a>
 <a href="/tunnels" class="{active_tunnels}">Tunnels</a>
 <a href="/logs" class="{active_logs}">Logs</a>
 <a href="/system" class="{active_system}">System</a>
-<a href="/setup" class="{active_setup}">Setup</a>
 </div>
 <div class="nav-right">
 <span class="refresh-dot"></span> Auto-refresh
@@ -768,9 +768,28 @@ gapo --server {html.escape(server_addr)} --token {token} --tcp postgres 5432</di
 </div>
 
 <div class="setup-section">
-<h3><span class="step-num">5</span> Quick Connect (One-liner)</h3>
-<p>Copy and paste this to expose a local web server on port 3000:</p>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>gapo -s {html.escape(server_addr)} -t {token} --http myapp 3000</div>
+<h3><span class="step-num">5</span> Save Config (Skip Flags)</h3>
+<p>Create <code>~/.gapo/config</code> to avoid repeating <code>--server</code> and <code>--token</code> every time:</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>mkdir -p ~/.gapo
+cat > ~/.gapo/config &lt;&lt; 'EOF'
+GAPO_SERVER={html.escape(server_addr)}
+GAPO_TOKEN={token}
+EOF</div>
+<p>Then simply run:</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button># HTTP tunnel
+gapo --http myapp 3000
+
+# TCP tunnel
+gapo --tcp ssh 22</div>
+<p style="margin-top:12px;"><strong>All config options:</strong></p>
+<table style="width:100%;font-size:13px;">
+<tr><th style="text-align:left;padding:6px 0;color:var(--text2);">Key</th><th style="text-align:left;padding:6px 0;color:var(--text2);">CLI Flag</th><th style="text-align:left;padding:6px 0;color:var(--text2);">Description</th></tr>
+<tr><td><code>GAPO_SERVER</code></td><td><code>--server</code></td><td style="color:var(--text2);">Server address</td></tr>
+<tr><td><code>GAPO_TOKEN</code></td><td><code>--token</code></td><td style="color:var(--text2);">Auth token</td></tr>
+<tr><td><code>GAPO_TLS</code></td><td><code>--tls</code></td><td style="color:var(--text2);">Encrypt tunnel connection (true/false)</td></tr>
+<tr><td><code>GAPO_INSECURE</code></td><td><code>--insecure</code></td><td style="color:var(--text2);">Allow self-signed certs (true/false)</td></tr>
+</table>
+<p style="color:var(--text2);font-size:13px;margin-top:8px;">CLI flags override config file values.</p>
 </div>
 
 <script>
