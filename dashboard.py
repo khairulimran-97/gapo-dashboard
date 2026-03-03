@@ -18,6 +18,8 @@ PASSWORD = os.environ.get("DASH_PASS", "changeme")
 PORT = int(os.environ.get("DASH_PORT", "8080"))
 SECRET = os.environ.get("DASH_SECRET", "default-secret-change-me").encode()
 GAPO_TOKEN = os.environ.get("GAPO_TOKEN", "")
+GAPO_DOMAIN = os.environ.get("GAPO_DOMAIN", "share.hostpanel.icu")
+GAPO_TUNNEL = os.environ.get("GAPO_TUNNEL", "19443")
 
 # Set timezone
 os.environ["TZ"] = os.environ.get("DASH_TZ", "Asia/Kuala_Lumpur")
@@ -403,6 +405,76 @@ tr:hover { background: var(--surface2); }
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
 }
+
+/* Setup page */
+.setup-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+.setup-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.setup-section p { color: var(--text2); font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
+.code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: var(--text);
+    margin-bottom: 12px;
+    position: relative;
+}
+.code-block .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 10px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.code-block .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab-row { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab-btn {
+    padding: 6px 16px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+}
 """
 
 LOGIN_PAGE = """<!DOCTYPE html>
@@ -451,6 +523,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 <a href="/tunnels" class="{active_tunnels}">Tunnels</a>
 <a href="/logs" class="{active_logs}">Logs</a>
 <a href="/system" class="{active_system}">System</a>
+<a href="/setup" class="{active_setup}">Setup</a>
 </div>
 <div class="nav-right">
 <span class="refresh-dot"></span> Auto-refresh
@@ -485,6 +558,7 @@ def page(title, content, active=""):
         active_tunnels="active" if active == "tunnels" else "",
         active_logs="active" if active == "logs" else "",
         active_system="active" if active == "system" else "",
+        active_setup="active" if active == "setup" else "",
     )
 
 
@@ -624,6 +698,101 @@ def render_system():
 """, active="system")
 
 
+def render_setup():
+    server_addr = f"{GAPO_DOMAIN}:{GAPO_TUNNEL}"
+    token = html.escape(GAPO_TOKEN)
+    domain = html.escape(GAPO_DOMAIN)
+
+    return page("Setup", f"""
+<h2 style="font-size:20px;margin-bottom:20px;">Client Setup Guide</h2>
+
+<div class="setup-section">
+<h3><span class="step-num">1</span> Download Gapo Client</h3>
+<p>Download the latest gapo client for your operating system from GitHub:</p>
+<div class="tab-row">
+<button class="tab-btn active" onclick="switchTab(event,'dl-linux')">Linux</button>
+<button class="tab-btn" onclick="switchTab(event,'dl-mac')">macOS</button>
+<button class="tab-btn" onclick="switchTab(event,'dl-win')">Windows</button>
+</div>
+<div id="dl-linux" class="tab-content active">
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -L -o gapo.tar.gz https://github.com/ghostbirdme/gapo/releases/download/v1.0.1/gapo_1.0.1_linux_amd64.tar.gz
+tar xzf gapo.tar.gz
+sudo mv gapo /usr/local/bin/
+chmod +x /usr/local/bin/gapo</div>
+</div>
+<div id="dl-mac" class="tab-content">
+<p style="margin-bottom:8px;"><strong>Intel Mac:</strong></p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -L -o gapo.tar.gz https://github.com/ghostbirdme/gapo/releases/download/v1.0.1/gapo_1.0.1_darwin_amd64.tar.gz
+tar xzf gapo.tar.gz
+sudo mv gapo /usr/local/bin/</div>
+<p style="margin-bottom:8px;"><strong>Apple Silicon (M1/M2/M3):</strong></p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -L -o gapo.tar.gz https://github.com/ghostbirdme/gapo/releases/download/v1.0.1/gapo_1.0.1_darwin_arm64.tar.gz
+tar xzf gapo.tar.gz
+sudo mv gapo /usr/local/bin/</div>
+</div>
+<div id="dl-win" class="tab-content">
+<p>Download from <a href="https://github.com/ghostbirdme/gapo/releases/tag/v1.0.1" target="_blank" style="color:var(--accent);">GitHub Releases</a> and extract <code>gapo.exe</code> to a folder in your PATH.</p>
+</div>
+</div>
+
+<div class="setup-section">
+<h3><span class="step-num">2</span> Server Details</h3>
+<p>Use these details to connect to this Gapo server:</p>
+<table style="width:100%;">
+<tr><td style="color:var(--text2);width:140px;padding:8px 0;">Server</td><td><code style="background:var(--bg);padding:4px 10px;border-radius:4px;">{html.escape(server_addr)}</code></td></tr>
+<tr><td style="color:var(--text2);padding:8px 0;">Token</td><td><code id="setup-token" style="background:var(--bg);padding:4px 10px;border-radius:4px;word-break:break-all;">{token}</code> <button onclick="navigator.clipboard.writeText(document.getElementById('setup-token').textContent)" style="padding:2px 8px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-left:6px;">Copy</button></td></tr>
+<tr><td style="color:var(--text2);padding:8px 0;">Domain</td><td><code style="background:var(--bg);padding:4px 10px;border-radius:4px;">{domain}</code></td></tr>
+</table>
+</div>
+
+<div class="setup-section">
+<h3><span class="step-num">3</span> Connect — HTTP Tunnel</h3>
+<p>Expose a local web app (e.g. port 3000) to the internet:</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>gapo --server {html.escape(server_addr)} --token {token} --http myapp 3000</div>
+<p>Your app will be available at <code>https://myapp.{domain}</code></p>
+<p style="color:var(--text2);font-size:13px;">Replace <code>myapp</code> with your desired subdomain and <code>3000</code> with your local port.</p>
+</div>
+
+<div class="setup-section">
+<h3><span class="step-num">4</span> Connect — TCP Tunnel</h3>
+<p>Expose a TCP service (SSH, database, etc.):</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button># SSH
+gapo --server {html.escape(server_addr)} --token {token} --tcp ssh 22
+
+# MySQL
+gapo --server {html.escape(server_addr)} --token {token} --tcp mysql 3306
+
+# PostgreSQL
+gapo --server {html.escape(server_addr)} --token {token} --tcp postgres 5432</div>
+<p style="color:var(--text2);font-size:13px;">The server will assign a public port (30000-39999) for your TCP tunnel.</p>
+</div>
+
+<div class="setup-section">
+<h3><span class="step-num">5</span> Quick Connect (One-liner)</h3>
+<p>Copy and paste this to expose a local web server on port 3000:</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>gapo -s {html.escape(server_addr)} -t {token} --http myapp 3000</div>
+</div>
+
+<script>
+function switchTab(e, id) {{
+    var parent = e.target.closest('.setup-section');
+    parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    e.target.classList.add('active');
+    document.getElementById(id).classList.add('active');
+}}
+function copyCode(btn) {{
+    var block = btn.parentElement;
+    var text = block.textContent.replace('Copy', '').trim();
+    navigator.clipboard.writeText(text).then(() => {{
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+    }});
+}}
+</script>
+""", active="setup")
+
+
 # ── HTTP Handler ─────────────────────────────────────────────────────────────
 class DashboardHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -707,6 +876,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self._send_html(200, render_logs())
         if path == "/system":
             return self._send_html(200, render_system())
+        if path == "/setup":
+            return self._send_html(200, render_setup())
 
         # Favicon
         if path == "/favicon.ico":
