@@ -17,6 +17,14 @@ USERNAME = os.environ.get("DASH_USER", "admin")
 PASSWORD = os.environ.get("DASH_PASS", "changeme")
 PORT = int(os.environ.get("DASH_PORT", "8080"))
 SECRET = os.environ.get("DASH_SECRET", "default-secret-change-me").encode()
+GAPO_TOKEN = os.environ.get("GAPO_TOKEN", "")
+
+# Set timezone
+os.environ["TZ"] = os.environ.get("DASH_TZ", "Asia/Kuala_Lumpur")
+try:
+    time.tzset()
+except AttributeError:
+    pass  # Windows
 
 SESSION_MAX_AGE = 86400  # 24 hours
 
@@ -101,6 +109,7 @@ def get_overview() -> dict:
         "cpu_time": cpu,
         "uptime_since": uptime,
         "version": version,
+        "token": GAPO_TOKEN,
     }
 
 
@@ -511,6 +520,13 @@ def render_overview():
 <div class="card">
 <div class="card-title">Version</div>
 <div class="card-value" style="font-size:16px;">{html.escape(d['version'])}</div>
+</div>
+<div class="card" style="grid-column: span 2;">
+<div class="card-title">Token</div>
+<div style="display:flex;align-items:center;gap:10px;">
+<code id="token-val" style="font-size:13px;background:var(--surface2);padding:8px 12px;border-radius:6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{html.escape(d['token'] or 'N/A')}</code>
+<button onclick="navigator.clipboard.writeText(document.getElementById('token-val').textContent).then(()=>this.textContent='Copied!').catch(()=>{{}})" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;">Copy</button>
+</div>
 </div>
 </div>
 """, active="overview")

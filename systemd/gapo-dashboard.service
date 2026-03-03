@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/gapo-dashboard/config
+EnvironmentFile=/etc/gapo/config
 ExecStart=/usr/bin/python3 /opt/gapo-dashboard/dashboard.py
 Restart=always
 RestartSec=5
