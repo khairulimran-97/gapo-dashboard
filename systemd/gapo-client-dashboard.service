@@ -1,0 +1,19 @@
+[Unit]
+Description=Gapo Client - Dashboard Tunnel
+After=network-online.target gapo-server.service gapo-dashboard.service
+Wants=network-online.target
+Requires=gapo-dashboard.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gapo/config
+ExecStart=/usr/local/bin/gapo \
+    --server 127.0.0.1:19443 \
+    --token ${GAPO_TOKEN} \
+    --no-tui \
+    --http dashboard 8080
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

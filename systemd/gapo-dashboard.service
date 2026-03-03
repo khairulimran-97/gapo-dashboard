@@ -1,0 +1,15 @@
+[Unit]
+Description=Gapo Tunnel Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gapo-dashboard/config
+ExecStart=/usr/bin/python3 /opt/gapo-dashboard/dashboard.py
+Restart=always
+RestartSec=5
+WorkingDirectory=/opt/gapo-dashboard
+
+[Install]
+WantedBy=multi-user.target

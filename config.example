@@ -1,0 +1,4 @@
+DASH_USER=admin
+DASH_PASS=change-me-to-a-secure-password
+DASH_PORT=8080
+DASH_SECRET=change-me-to-a-random-secret-string
