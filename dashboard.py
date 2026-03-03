@@ -715,7 +715,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if hmac.compare_digest(username, USERNAME) and hmac.compare_digest(password, PASSWORD):
                 token = make_session_token(username)
                 cookie = f"session={urllib.parse.quote(token)}; Path=/; Max-Age={SESSION_MAX_AGE}; HttpOnly; SameSite=Lax"
-                return self._redirect("/", {"Set-Cookie": cookie})
+                # Render dashboard directly with Set-Cookie instead of 302 redirect
+                # (gapo tunnel follows redirects server-side, which loses the cookie)
+                return self._send_html(200, render_overview(), {"Set-Cookie": cookie})
             else:
                 return self._send_html(401, LOGIN_PAGE.format(
                     css=CSS,
