@@ -144,11 +144,11 @@ def get_tunnels() -> list:
     return list(tunnels.values())
 
 
-def get_logs(lines: int = 80, filter_str: str = "") -> str:
+def get_logs(lines: int = 80, filter_str: str = "", source: str = "server") -> str:
+    unit = "gapo-server" if source == "server" else "gapo-client-dashboard"
     if filter_str:
-        # Get more lines and grep for the filter, keeping last N matches
-        return run(f"journalctl -u gapo-server --no-pager -n 2000 --output=short-iso 2>/dev/null | grep -i '{filter_str}' | tail -n {lines}", timeout=10) or "No matching log entries"
-    return run(f"journalctl -u gapo-server --no-pager -n {lines} --output=short-iso 2>/dev/null || echo 'No logs available'", timeout=10)
+        return run(f"journalctl -u {unit} --no-pager -n 2000 --output=short-iso 2>/dev/null | grep -i '{filter_str}' | tail -n {lines}", timeout=10) or "No matching log entries"
+    return run(f"journalctl -u {unit} --no-pager -n {lines} --output=short-iso 2>/dev/null || echo 'No logs available'", timeout=10)
 
 
 def get_system() -> dict:
@@ -690,8 +690,9 @@ def render_tunnels():
 """, active="tunnels")
 
 
-def render_logs(filter_str: str = ""):
-    logs = get_logs(filter_str=filter_str)
+def render_logs(filter_str: str = "", source: str = "server"):
+    server_logs = get_logs(filter_str=filter_str, source="server")
+    client_logs = get_logs(filter_str=filter_str, source="client")
     safe_filter = html.escape(filter_str)
 
     filter_bar = ""
@@ -700,20 +701,29 @@ def render_logs(filter_str: str = ""):
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
 <span style="font-size:13px;color:var(--text2);">Filtered by:</span>
 <code style="background:var(--surface);padding:6px 12px;border-radius:6px;font-size:13px;border:1px solid var(--border);">{safe_filter}</code>
-<a href="/logs" style="font-size:13px;color:var(--accent);">Clear filter</a>
+<a href="/logs?source={html.escape(source)}" style="font-size:13px;color:var(--accent);">Clear filter</a>
 </div>"""
 
-    title = f"Logs — {safe_filter}" if filter_str else "Server Logs"
+    filter_qs = f"&filter={urllib.parse.quote(filter_str)}" if filter_str else ""
+    server_active = "active" if source == "server" else ""
+    client_active = "active" if source == "client" else ""
+
+    server_title = f"Server Logs — {safe_filter}" if filter_str else "Server Logs"
+    client_title = f"Client Logs — {safe_filter}" if filter_str else "Client Logs"
     subtitle = f"Matching entries for {safe_filter}" if filter_str else "Last 80 lines"
 
     return page("Logs", f"""
 {filter_bar}
+<div style="display:flex;gap:4px;margin-bottom:16px;">
+<a href="/logs?source=server{filter_qs}" class="tab-btn {server_active}" style="display:inline-block;padding:8px 20px;background:{'var(--accent)' if source == 'server' else 'var(--surface)'};color:{'#fff' if source == 'server' else 'var(--text2)'};border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;border:1px solid {'var(--accent)' if source == 'server' else 'var(--border)'};">Server Logs</a>
+<a href="/logs?source=client{filter_qs}" style="display:inline-block;padding:8px 20px;background:{'var(--accent)' if source == 'client' else 'var(--surface)'};color:{'#fff' if source == 'client' else 'var(--text2)'};border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;border:1px solid {'var(--accent)' if source == 'client' else 'var(--border)'};">Client Logs</a>
+</div>
 <div class="log-box">
 <div class="table-header" style="display:flex;justify-content:space-between;align-items:center;">
-<h2>{title}</h2>
+<h2>{client_title if source == 'client' else server_title}</h2>
 <span style="font-size:12px;color:var(--text2);">{subtitle}</span>
 </div>
-<pre>{html.escape(logs)}</pre>
+<pre>{html.escape(client_logs if source == 'client' else server_logs)}</pre>
 </div>
 """, active="logs")
 
@@ -971,7 +981,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path == "/logs":
             qs = self._parse_qs()
             filter_str = qs.get("filter", [""])[0]
-            return self._send_html(200, render_logs(filter_str=filter_str))
+            source = qs.get("source", ["server"])[0]
+            if source not in ("server", "client"):
+                source = "server"
+            return self._send_html(200, render_logs(filter_str=filter_str, source=source))
         if path == "/system":
             return self._send_html(200, render_system())
         if path == "/setup":
