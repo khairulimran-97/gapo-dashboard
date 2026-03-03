@@ -144,7 +144,10 @@ def get_tunnels() -> list:
     return list(tunnels.values())
 
 
-def get_logs(lines: int = 80) -> str:
+def get_logs(lines: int = 80, filter_str: str = "") -> str:
+    if filter_str:
+        # Get more lines and grep for the filter, keeping last N matches
+        return run(f"journalctl -u gapo-server --no-pager -n 2000 --output=short-iso 2>/dev/null | grep -i '{filter_str}' | tail -n {lines}", timeout=10) or "No matching log entries"
     return run(f"journalctl -u gapo-server --no-pager -n {lines} --output=short-iso 2>/dev/null || echo 'No logs available'", timeout=10)
 
 
@@ -623,27 +626,31 @@ def render_tunnels():
 
     active_rows = ""
     if not active:
-        active_rows = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:32px;">No active tunnels</td></tr>'
+        active_rows = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:32px;">No active tunnels</td></tr>'
     else:
         for t in active:
             url = f'https://{t["subdomain"]}'
+            log_url = f'/logs?filter={urllib.parse.quote(t["subdomain"])}'
             active_rows += f"""<tr>
 <td><span class="badge badge-green">Active</span></td>
 <td><a href="{html.escape(url)}" target="_blank" style="color:var(--accent);">{html.escape(t['subdomain'])}</a></td>
 <td><span class="badge" style="background:rgba(108,123,247,0.15);color:var(--accent);">{html.escape(t['type'].upper())}</span></td>
 <td>{html.escape(t['client'])}</td>
 <td style="font-size:12px;color:var(--text2);">{html.escape(t['time'])}</td>
+<td><a href="{html.escape(log_url)}" style="font-size:12px;color:var(--accent);">View Logs</a></td>
 </tr>"""
 
     recent_rows = ""
     if inactive:
         for t in inactive:
+            log_url = f'/logs?filter={urllib.parse.quote(t["subdomain"])}'
             recent_rows += f"""<tr>
 <td><span class="badge badge-red">Closed</span></td>
 <td style="color:var(--text2);">{html.escape(t['subdomain'])}</td>
 <td><span class="badge" style="background:var(--surface2);color:var(--text2);">{html.escape(t['type'].upper())}</span></td>
 <td style="color:var(--text2);">{html.escape(t['client'])}</td>
 <td style="font-size:12px;color:var(--text2);">{html.escape(t['time'])}</td>
+<td><a href="{html.escape(log_url)}" style="font-size:12px;color:var(--accent);">View Logs</a></td>
 </tr>"""
 
     recent_section = ""
@@ -654,7 +661,7 @@ def render_tunnels():
 <h2>Recently Closed</h2>
 </div>
 <table>
-<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th></tr>
+<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th><th></th></tr>
 {recent_rows}
 </table>
 </div>"""
@@ -675,7 +682,7 @@ def render_tunnels():
 <h2>Active Tunnels</h2>
 </div>
 <table>
-<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th></tr>
+<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th><th></th></tr>
 {active_rows}
 </table>
 </div>
@@ -683,13 +690,28 @@ def render_tunnels():
 """, active="tunnels")
 
 
-def render_logs():
-    logs = get_logs()
+def render_logs(filter_str: str = ""):
+    logs = get_logs(filter_str=filter_str)
+    safe_filter = html.escape(filter_str)
+
+    filter_bar = ""
+    if filter_str:
+        filter_bar = f"""
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+<span style="font-size:13px;color:var(--text2);">Filtered by:</span>
+<code style="background:var(--surface);padding:6px 12px;border-radius:6px;font-size:13px;border:1px solid var(--border);">{safe_filter}</code>
+<a href="/logs" style="font-size:13px;color:var(--accent);">Clear filter</a>
+</div>"""
+
+    title = f"Logs — {safe_filter}" if filter_str else "Server Logs"
+    subtitle = f"Matching entries for {safe_filter}" if filter_str else "Last 80 lines"
+
     return page("Logs", f"""
+{filter_bar}
 <div class="log-box">
 <div class="table-header" style="display:flex;justify-content:space-between;align-items:center;">
-<h2>Server Logs</h2>
-<span style="font-size:12px;color:var(--text2);">Last 80 lines</span>
+<h2>{title}</h2>
+<span style="font-size:12px;color:var(--text2);">{subtitle}</span>
 </div>
 <pre>{html.escape(logs)}</pre>
 </div>
@@ -907,6 +929,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.send_header(k, v)
         self.end_headers()
 
+    def _parse_qs(self) -> dict:
+        if "?" in self.path:
+            return urllib.parse.parse_qs(self.path.split("?", 1)[1])
+        return {}
+
     def do_GET(self):
         path = self.path.split("?")[0]
 
@@ -942,7 +969,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path == "/tunnels":
             return self._send_html(200, render_tunnels())
         if path == "/logs":
-            return self._send_html(200, render_logs())
+            qs = self._parse_qs()
+            filter_str = qs.get("filter", [""])[0]
+            return self._send_html(200, render_logs(filter_str=filter_str))
         if path == "/system":
             return self._send_html(200, render_system())
         if path == "/setup":
