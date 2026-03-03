@@ -116,22 +116,32 @@ def get_overview() -> dict:
 
 
 def get_tunnels() -> list:
-    """Parse active tunnel connections from ss."""
-    lines = run("ss -tnp state established '( sport = :443 or sport = :19443 )' 2>/dev/null || ss -tnp | grep -E ':443|:19443'")
-    tunnels = []
-    for line in lines.splitlines():
-        line = line.strip()
-        if not line or line.startswith("State") or line.startswith("Recv-Q"):
+    """Parse active tunnels from gapo-server logs (registered/closed events)."""
+    logs = run("journalctl -u gapo-server --no-pager -n 500 --output=short-iso 2>/dev/null", timeout=10)
+    # Track tunnel state: last "registered" without a subsequent "session closed" = active
+    tunnels = {}  # subdomain -> {client, type, time}
+    for line in logs.splitlines():
+        # registered: dashboard.share.hostpanel.icu (127.0.0.1:45720) [http]
+        m = re.search(r'tunnel: registered (\S+) \(([^)]+)\) \[(\w+)\]', line)
+        if m:
+            subdomain, client, ttype = m.group(1), m.group(2), m.group(3)
+            # Extract timestamp from line start
+            ts = line.split(" ", 1)[0] if line else ""
+            tunnels[subdomain] = {
+                "subdomain": subdomain,
+                "client": client,
+                "type": ttype,
+                "time": ts,
+                "active": True,
+            }
             continue
-        parts = line.split()
-        if len(parts) >= 4:
-            tunnels.append({
-                "state": parts[0] if not parts[0].isdigit() else "ESTAB",
-                "local": parts[-3] if len(parts) >= 5 else parts[1],
-                "peer": parts[-2] if len(parts) >= 5 else parts[2],
-                "process": parts[-1] if len(parts) >= 5 else "",
-            })
-    return tunnels
+        # session closed for dashboard.share.hostpanel.icu
+        m = re.search(r'tunnel: session closed for (\S+)', line)
+        if m:
+            subdomain = m.group(1)
+            if subdomain in tunnels:
+                tunnels[subdomain]["active"] = False
+    return list(tunnels.values())
 
 
 def get_logs(lines: int = 80) -> str:
@@ -608,28 +618,68 @@ def render_overview():
 
 def render_tunnels():
     tunnels = get_tunnels()
-    rows = ""
-    if not tunnels:
-        rows = '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:32px;">No active connections</td></tr>'
+    active = [t for t in tunnels if t["active"]]
+    inactive = [t for t in tunnels if not t["active"]]
+
+    active_rows = ""
+    if not active:
+        active_rows = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:32px;">No active tunnels</td></tr>'
     else:
-        for t in tunnels:
-            rows += f"""<tr>
-<td><span class="badge badge-green">{html.escape(t['state'])}</span></td>
-<td>{html.escape(t['local'])}</td>
-<td>{html.escape(t['peer'])}</td>
-<td style="font-size:12px;color:var(--text2);">{html.escape(t['process'])}</td>
+        for t in active:
+            url = f'https://{t["subdomain"]}'
+            active_rows += f"""<tr>
+<td><span class="badge badge-green">Active</span></td>
+<td><a href="{html.escape(url)}" target="_blank" style="color:var(--accent);">{html.escape(t['subdomain'])}</a></td>
+<td><span class="badge" style="background:rgba(108,123,247,0.15);color:var(--accent);">{html.escape(t['type'].upper())}</span></td>
+<td>{html.escape(t['client'])}</td>
+<td style="font-size:12px;color:var(--text2);">{html.escape(t['time'])}</td>
 </tr>"""
 
-    return page("Tunnels", f"""
+    recent_rows = ""
+    if inactive:
+        for t in inactive:
+            recent_rows += f"""<tr>
+<td><span class="badge badge-red">Closed</span></td>
+<td style="color:var(--text2);">{html.escape(t['subdomain'])}</td>
+<td><span class="badge" style="background:var(--surface2);color:var(--text2);">{html.escape(t['type'].upper())}</span></td>
+<td style="color:var(--text2);">{html.escape(t['client'])}</td>
+<td style="font-size:12px;color:var(--text2);">{html.escape(t['time'])}</td>
+</tr>"""
+
+    recent_section = ""
+    if inactive:
+        recent_section = f"""
 <div class="table-wrap">
 <div class="table-header">
-<h2>Active Connections ({len(tunnels)})</h2>
+<h2>Recently Closed</h2>
 </div>
 <table>
-<tr><th>State</th><th>Local</th><th>Peer</th><th>Process</th></tr>
-{rows}
+<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th></tr>
+{recent_rows}
+</table>
+</div>"""
+
+    return page("Tunnels", f"""
+<div class="grid">
+<div class="card">
+<div class="card-title">Active Tunnels</div>
+<div class="card-value">{len(active)}</div>
+</div>
+<div class="card">
+<div class="card-title">Total Seen (This Session)</div>
+<div class="card-value">{len(tunnels)}</div>
+</div>
+</div>
+<div class="table-wrap">
+<div class="table-header">
+<h2>Active Tunnels</h2>
+</div>
+<table>
+<tr><th>Status</th><th>Subdomain</th><th>Type</th><th>Client</th><th>Registered</th></tr>
+{active_rows}
 </table>
 </div>
+{recent_section}
 """, active="tunnels")
 
 
